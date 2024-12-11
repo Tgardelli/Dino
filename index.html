@@ -111,10 +111,6 @@
         backgroundImage.src = "assets/background.png";
         let backgroundX = 0;
 
-        function resetBackground() {
-            backgroundX = 0;
-        }
-
         // Som de pontuação
         function playPointSound() {
             pointSound.volume = 0.3;
@@ -240,20 +236,25 @@
             gameRunning = true;
             gameOverScreen.style.display = 'none';
             overlay.style.display = 'none';
+            resetBackground();
             requestAnimationFrame(gameLoop);
         }
 
         // Movimento do background
         function drawBackground() {
             ctx.globalAlpha = 0.8;
-            ctx.drawImage(backgroundImage, backgroundX, 50, 2560, canvas.height -90);
-            ctx.drawImage(backgroundImage, backgroundX + 2560, 0, 2560, canvas.height -40);
+            ctx.drawImage(backgroundImage, backgroundX, 50, 2560, canvas.height - 90);
+            ctx.drawImage(backgroundImage, backgroundX + 2560, 0, 2560, canvas.height - 40);
             ctx.globalAlpha = 1;
             backgroundX -= baseSpeed / 20;
-
+    
             if (backgroundX <= -2560) {
                 backgroundX = 0;
             }
+        }
+    
+        function resetBackground() {
+            backgroundX = 0; // Reset the position of the background
         }
 
         function increaseDifficulty() {
@@ -275,7 +276,6 @@
                 updateObstacles();
                 checkCollision();
                 increaseDifficulty();
-                resetBackground();
 
                 requestAnimationFrame(gameLoop);
             }
