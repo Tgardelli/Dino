@@ -111,6 +111,10 @@
         backgroundImage.src = "assets/background.png";
         let backgroundX = 0;
 
+        function resetBackground() {
+            backgroundX = 0;
+        }
+
         // Som de pontuação
         function playPointSound() {
             pointSound.volume = 0.3;
@@ -271,6 +275,7 @@
                 updateObstacles();
                 checkCollision();
                 increaseDifficulty();
+                resetBackground();
 
                 requestAnimationFrame(gameLoop);
             }
