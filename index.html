@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Dinosaur Run Game</title>
+    <meta charset="UTF-8">
+    <title>Dino Run</title>
     <style>
         body {
             display: flex;
@@ -9,49 +10,146 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f7f7f7;
-            font-family: Arial, sans-serif;
+            background-color: #d4d4d4;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
         }
+        
         #gameCanvas {
-            border: 1px solid #000;
-            background-color: #fff;
+            border: none;
+            background-color: transparent;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1;
         }
+        
         #score {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 20px;
+            top: calc(50% - 120px); /* ajusta de acordo com o gameCanvas */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            color: #fff;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* transparencia */
+            display: none; /* Esconde a tela de fim de jogo 2 */
+            z-index: 2;
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none; /* Esconde a tela de fim de jogo */
+            color: rgb(255, 255, 255);
+            z-index: 3;
+        }
+
+        #gameOverScreen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        #gameOverScreen p {
+            font-size: 24px;
         }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="200"></canvas>
-    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="1280" height="150"></canvas>
+    <div id="score">Pontuação: 0</div>
+
+    <!-- Overlay do game over -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Audios -->
+    <audio id="pointSound" src="assets/score.wav" preload="auto"></audio>
+    <audio id="jumpSound" src="assets/jump.wav" preload="auto"></audio>
+    <audio id="collisionSound" src="assets/gameover.mp3" preload="auto"></audio>
+
+    <!-- Imagens -->
+    <img id="dinoImage" src="assets/dino.png" alt="Dinosaur" style="display:none;">
+    <img id="obstacleImage" src="assets/obstacle.png" alt="Obstacle" style="display:none;">
+
+    <div id="gameOverScreen">
+        <h1>Fim de Jogo</h1>
+        <p>Pressione Espaço para reiniciar</p>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const dino = { x: 50, y: 150, width: 20, height: 20, dy: 0, jumpHeight: -15, gravity: 1, grounded: true }; // status do dino
+        const dino = { x: 50, y: 185, width: 14, height: 15, dy: 0, jumpHeight: -16, gravity: 1, grounded: true };
         const obstacles = [];
         let score = 0;
         let gameRunning = true;
         let baseSpeed = 2;
         let jumping = false;
+        let level = 1;
+        const speedIncreasePerLevel = 0.2;
+        const pointSound = document.getElementById('pointSound');
+        const jumpSound = document.getElementById('jumpSound');
+        const collisionSound = document.getElementById('collisionSound');
+        const dinoImage = document.getElementById('dinoImage');
+        const obstacleImage = document.getElementById('obstacleImage');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const overlay = document.getElementById('overlay');
 
-        // Desenha o dinossauro na tela
-        function drawDino() {
-            ctx.fillStyle = 'green';
-            ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+        // Background
+        const backgroundImage = new Image();
+        backgroundImage.src = "assets/background.png";
+        let backgroundX = 0;
+
+        // Som de pontuação
+        function playPointSound() {
+            pointSound.volume = 0.3;
+            pointSound.play();
         }
 
-        // Atualiza a posição do dinossauro
+        // tela de fim de jogo
+        function showGameOver() {
+            gameRunning = false;
+            overlay.style.display = 'block';
+            gameOverScreen.style.display = 'block';
+        }
+
+        // Som de pulo
+        function playJumpSound() {
+            jumpSound.play();
+        }
+
+        // Som de game over
+        function playCollisionSound() {
+            collisionSound.volume = 0.09;
+            collisionSound.play();
+        }
+
+        // Coloca o dinosauro na tela, caso a imagem falhe tenta desenhar um retângulo verde
+
+        function drawDino() {
+            if (dinoImage.complete) {
+                ctx.drawImage(dinoImage, dino.x, dino.y, dino.width, dino.height);
+            } else {
+                ctx.fillStyle = 'green';
+                ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+            }
+        }
+
+        // Movimento do dinossauro na tela (gravidade e pulo)
         function updateDino() {
             if (!dino.grounded) {
-                if (jumping) {
-                    dino.dy += dino.gravity;
-                } else {
-                    dino.dy = dino.gravity; // Aplica a gravidade diretamente quando a barra de espaço é liberada
-                }
+                dino.dy += dino.gravity;
                 dino.y += dino.dy;
             }
             if (dino.y + dino.height >= canvas.height) {
@@ -61,38 +159,46 @@
             }
         }
 
-        // Gerencia o pulo do dinossauro
+        //  Pulo do dinossauro
         function handleJump() {
             if (dino.grounded) {
+                playJumpSound();
                 dino.dy = dino.jumpHeight;
                 dino.grounded = false;
-                jumping = true;
             }
         }
 
-        // Atualiza a pontuação
+        // Atualiza pontuação
         function updateScore() {
             score += 1;
-            document.getElementById('score').innerText = `Score: ${Math.floor(score / 5)}`;
+            document.getElementById('score').innerText = `Pontuação: ${Math.floor(score / 5)}`;
+            if (score % 500 === 0) { // Play sound when reaching a multiple of 500
+                playPointSound();
+            }
         }
 
-        // Gera obstáculos de forma aleatória
+        // Spawna obstaculos de tamanho variado e em cima ou em baixo
         function spawnObstacle() {
-            const height = Math.random() * 40 + 10;
-            const yPosition = Math.random() > 0.5 ? canvas.height - height : 0; // Posiciona aleatoriamente no topo ou na parte inferior
-            const obstacle = { x: canvas.width, y: yPosition, width: 20, height: height };
+            const height = Math.random() * 30 + 15;
+            const yPosition = Math.random() > 0.5 ? canvas.height - height : 0; // Posição do obstaculo top ou bottom
+            const obstacle = { x: canvas.width, y: yPosition, width: 14, height: height };
             obstacles.push(obstacle);
         }
 
-        // Desenha os obstáculos na tela
+        // Utiliza imagem para os obstaculos, caso falha tenta carregar obstaculos em forma de quadrado vermelha
+
         function drawObstacles() {
-            ctx.fillStyle = 'red';
             obstacles.forEach(obstacle => {
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                if (obstacleImage.complete) {
+                    ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                } else {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                }
             });
         }
 
-        // Atualiza a posição dos obstáculos
+        // Faz os obstaculos de moverem e remove eles da tela.
         function updateObstacles() {
             obstacles.forEach(obstacle => {
                 obstacle.x -= baseSpeed;
@@ -103,7 +209,7 @@
             }
         }
 
-        // Verifica colisões entre o dinossauro e os obstáculos
+        // Check for collisions between the dinosaur and obstacles
         function checkCollision() {
             for (const obstacle of obstacles) {
                 if (
@@ -112,42 +218,65 @@
                     dino.y < obstacle.y + obstacle.height &&
                     dino.y + dino.height > obstacle.y
                 ) {
-                    gameRunning = false;
+                    playCollisionSound();
+                    showGameOver();
                     break;
                 }
             }
         }
 
-        // Reinicia o jogo
+        // Reseta o jogo quando morre e começa novamente
         function restartGame() {
-            dino.y = 150;
+            dino.y = 185;
             dino.dy = 0;
             dino.grounded = true;
             score = 0;
-            obstacles.length = 0;  // Limpa a lista de obstáculos
-            baseSpeed = 2; // Reseta a velocidade base
+            obstacles.length = 0;
+            baseSpeed = 2; 
             gameRunning = true;
+            gameOverScreen.style.display = 'none';
+            overlay.style.display = 'none';
             requestAnimationFrame(gameLoop);
         }
 
-        // Loop principal do jogo
+        // Movimento do background
+        function drawBackground() {
+            ctx.globalAlpha = 0.8;
+            ctx.drawImage(backgroundImage, backgroundX, 50, 2560, canvas.height -90);
+            ctx.drawImage(backgroundImage, backgroundX + 2560, 0, 2560, canvas.height -40);
+            ctx.globalAlpha = 1;
+            backgroundX -= baseSpeed / 20;
+
+            if (backgroundX <= -2560) {
+                backgroundX = 0;
+            }
+        }
+
+        function increaseDifficulty() {
+            if (score >= level * 500) {
+                level++;
+                baseSpeed += speedIncreasePerLevel;
+            }
+        }
+
+        // Magia que faz o jogo funcionar
         function gameLoop() {
             if (gameRunning) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBackground();
                 drawDino();
                 updateDino();
                 updateScore();
                 drawObstacles();
                 updateObstacles();
                 checkCollision();
-
-                baseSpeed = 2 + Math.floor(score / 100); // Aumenta a velocidade conforme a pontuação aumenta
+                increaseDifficulty();
 
                 requestAnimationFrame(gameLoop);
             }
         }
 
-        // Eventos de teclado para gerenciar o pulo e o reinício do jogo
+        // Magia que faz o pulo funcionar
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space') {
                 if (gameRunning) {
@@ -164,8 +293,8 @@
             }
         });
 
-        // Intervalo para gerar novos obstáculos a cada 1.5 segundos
-        setInterval(spawnObstacle, 1500);
+        // Spawna obstaculos a cada 1.1s
+        setInterval(spawnObstacle, 1100);
 
         requestAnimationFrame(gameLoop);
     </script>
